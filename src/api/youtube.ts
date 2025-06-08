@@ -40,23 +40,13 @@ export const fetchVideoInfo = async (videoId: string): Promise<VideoInfo> => {
     const data = await response.json();
     console.log('Video Info Response:', data);
 
-    // Use the highest quality thumbnail available
-    let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
-    if (data.thumbnail && Array.isArray(data.thumbnail) && data.thumbnail.length > 0) {
-      // Sort thumbnails by resolution and pick the highest quality
-      const sortedThumbnails = data.thumbnail.sort((a: any, b: any) => (b.width * b.height) - (a.width * a.height));
-      thumbnailUrl = sortedThumbnails[0].url;
-    } else if (data.thumbnail && typeof data.thumbnail === 'string') {
-      thumbnailUrl = data.thumbnail;
-    }
-
     return {
       title: data.title || 'Unknown Title',
-      thumbnail: thumbnailUrl,
-      duration: data.lengthSeconds ? formatDuration(parseInt(data.lengthSeconds)) : '0:00',
-      views: data.viewCount ? `${formatViews(parseInt(data.viewCount))} views` : '0 views',
+      thumbnail: data.thumbnail || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+      duration: data.duration ? formatDuration(data.duration) : '0:00',
+      views: data.view_count ? `${formatViews(data.view_count)} views` : '0 views',
       videoId: videoId,
-      isShort: data.isShortsEligible || false
+      isShort: data.is_short || false
     };
   } catch (error) {
     console.error('Video Info Error:', error);
@@ -85,19 +75,19 @@ export const fetchVideoQualities = async (videoId: string): Promise<ApiResponse>
     const qualitiesData = await qualitiesResponse.json();
     console.log('Available Qualities Response:', qualitiesData);
 
-    // Better duplicate removal - group by type and quality, keep highest bitrate
-    const qualityGroups = new Map<string, any>();
+    // Remove duplicates by creating a map based on quality + type + format combination
+    const uniqueQualities = new Map<string, any>();
     
     qualitiesData.forEach((format: any) => {
-      const key = `${format.type}-${format.quality}`;
-      
-      if (!qualityGroups.has(key) || format.bitrate > qualityGroups.get(key).bitrate) {
-        qualityGroups.set(key, format);
+      const key = `${format.quality}-${format.type}-${format.mime}`;
+      // Keep the one with higher bitrate if duplicate
+      if (!uniqueQualities.has(key) || format.bitrate > uniqueQualities.get(key).bitrate) {
+        uniqueQualities.set(key, format);
       }
     });
 
     // Transform the unique qualities to match our interface
-    const qualities: VideoQuality[] = Array.from(qualityGroups.values()).map((format: any) => ({
+    const qualities: VideoQuality[] = Array.from(uniqueQualities.values()).map((format: any) => ({
       id: format.id,
       quality: format.quality || 'Unknown',
       format: getFormatFromMime(format.mime),
@@ -108,42 +98,15 @@ export const fetchVideoQualities = async (videoId: string): Promise<ApiResponse>
       mime: format.mime || ''
     }));
 
-    // Add MP3 option for audio (we'll convert from highest quality audio)
-    const highestAudioQuality = qualities
-      .filter(q => q.type === 'audio')
-      .sort((a, b) => b.bitrate - a.bitrate)[0];
-
-    if (highestAudioQuality) {
-      qualities.push({
-        id: highestAudioQuality.id,
-        quality: 'High Quality',
-        format: 'MP3',
-        size: `${Math.round(parseInt(highestAudioQuality.size) * 0.8)} MB`, // Estimate MP3 size
-        downloadUrl: '',
-        type: 'audio',
-        bitrate: Math.min(320, highestAudioQuality.bitrate), // Cap at 320kbps for MP3
-        mime: 'audio/mp3'
-      });
-    }
-
-    // Enhanced sorting: Videos by resolution (highest first), Audio by bitrate (highest first)
+    // Sort qualities by resolution (video) and bitrate (audio)
     qualities.sort((a, b) => {
       if (a.type === b.type) {
         if (a.type === 'video') {
-          // For videos, sort by resolution quality
-          const orderA = getQualityOrder(a.quality);
-          const orderB = getQualityOrder(b.quality);
-          if (orderA !== orderB) {
-            return orderB - orderA; // Higher resolution first
-          }
-          // If same resolution, prefer higher bitrate
-          return b.bitrate - a.bitrate;
+          return getQualityOrder(b.quality) - getQualityOrder(a.quality);
         } else {
-          // For audio, sort by bitrate (highest first)
           return b.bitrate - a.bitrate;
         }
       }
-      // Videos before audio
       return a.type === 'video' ? -1 : 1;
     });
 
@@ -172,6 +135,7 @@ export const downloadVideo = async (videoId: string, qualityId: number, isShort:
     const data = await response.json();
     console.log('Download Response:', data);
     
+    // Return the actual download URL from the file property
     return data.file || data.downloadUrl || '';
   } catch (error) {
     console.error('Download Error:', error);
@@ -196,6 +160,7 @@ export const downloadAudio = async (videoId: string, qualityId: number): Promise
     const data = await response.json();
     console.log('Audio Download Response:', data);
     
+    // Return the actual download URL from the file property
     return data.file || data.downloadUrl || '';
   } catch (error) {
     console.error('Audio Download Error:', error);
@@ -208,9 +173,8 @@ const getFormatFromMime = (mime: string): string => {
   
   if (mime.includes('mp4')) return 'MP4';
   if (mime.includes('webm')) return 'WEBM';
-  if (mime.includes('audio/mp4') || mime.includes('mp4a')) return 'M4A';
+  if (mime.includes('audio/mp4')) return 'M4A';
   if (mime.includes('opus')) return 'OPUS';
-  if (mime.includes('mp3')) return 'MP3';
   
   return 'MP4';
 };
@@ -218,8 +182,7 @@ const getFormatFromMime = (mime: string): string => {
 const getQualityOrder = (quality: string): number => {
   const qualityMap: { [key: string]: number } = {
     '4320p': 4320, '2160p': 2160, '1440p': 1440, '1080p': 1080,
-    '720p': 720, '480p': 480, '360p': 360, '240p': 240, '144p': 144,
-    'High Quality': 1000 // For MP3 audio
+    '720p': 720, '480p': 480, '360p': 360, '240p': 240, '144p': 144
   };
   return qualityMap[quality] || 0;
 };
