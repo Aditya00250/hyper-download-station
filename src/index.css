@@ -5,48 +5,49 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
+/* Enhanced Dark Purple/Blue Theme Design System */
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --background: 230 25% 6%;
+    --foreground: 230 10% 95%;
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 230 20% 8%;
+    --card-foreground: 230 10% 95%;
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 230 20% 8%;
+    --popover-foreground: 230 10% 95%;
 
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 250 85% 65%;
+    --primary-foreground: 230 25% 6%;
 
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 230 15% 12%;
+    --secondary-foreground: 230 10% 95%;
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 230 15% 12%;
+    --muted-foreground: 230 5% 65%;
 
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 260 75% 55%;
+    --accent-foreground: 230 10% 95%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 230 15% 18%;
+    --input: 230 15% 12%;
+    --ring: 250 85% 65%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Purple/Blue gradient colors */
+    --gradient-primary: 250 85% 65%;
+    --gradient-secondary: 260 75% 55%;
+    --gradient-accent: 270 65% 45%;
+    
+    /* Glass effect colors */
+    --glass-bg: rgba(88, 101, 242, 0.1);
+    --glass-border: rgba(139, 92, 246, 0.2);
+    --glass-glow: rgba(139, 92, 246, 0.3);
   }
 }
 
@@ -58,18 +59,43 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, hsl(230 25% 6%) 0%, hsl(250 30% 8%) 50%, hsl(270 25% 6%) 100%);
+    min-height: 100vh;
   }
 }
 
 @layer components {
-  .glass-morphism {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+  .glass-card {
+    background: linear-gradient(135deg, var(--glass-bg) 0%, rgba(139, 92, 246, 0.05) 100%);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 25px 50px -12px rgba(139, 92, 246, 0.25);
+  }
+  
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--gradient-primary)) 0%, hsl(var(--gradient-secondary)) 100%);
+  }
+  
+  .gradient-button {
+    background: linear-gradient(135deg, hsl(var(--gradient-primary)) 0%, hsl(var(--gradient-secondary)) 50%, hsl(var(--gradient-accent)) 100%);
+    transition: all 0.3s ease;
+  }
+  
+  .gradient-button:hover {
+    background: linear-gradient(135deg, hsl(var(--gradient-secondary)) 0%, hsl(var(--gradient-accent)) 50%, hsl(var(--gradient-primary)) 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px -8px var(--glass-glow);
   }
   
   .shimmer-bg {
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.15), transparent);
     background-size: 200% 100%;
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(var(--gradient-primary)) 0%, hsl(var(--gradient-secondary)) 50%, hsl(var(--gradient-accent)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
