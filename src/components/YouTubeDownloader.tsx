@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Download, Play, Video, Youtube, AlertCircle, Music } from 'lucide-react';
+import { Download, Play, Video, Youtube, Music } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fetchVideoQualities, VideoQuality, VideoInfo, downloadVideo, downloadAudio } from '@/api/youtube';
 
@@ -19,7 +18,7 @@ const YouTubeDownloader = () => {
   const { toast } = useToast();
 
   const extractVideoId = (url: string) => {
-    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/;
+    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([^&\n?#]+)/;
     const match = url.match(regex);
     return match ? match[1] : null;
   };
@@ -56,7 +55,7 @@ const YouTubeDownloader = () => {
       
       toast({
         title: "Success",
-        description: "Video loaded successfully!"
+        description: `Video loaded successfully! Found ${data.qualities.length} quality options.`
       });
     } catch (error) {
       console.error('Error fetching video qualities:', error);
@@ -80,12 +79,10 @@ const YouTubeDownloader = () => {
       return;
     }
 
-    setDownloadingQuality(quality.quality);
+    setDownloadingQuality(`${quality.quality}-${quality.type}`);
     setDownloadProgress(0);
 
     try {
-      let downloadUrl: string;
-      
       // Simulate progress
       const progressInterval = setInterval(() => {
         setDownloadProgress(prev => {
@@ -97,20 +94,27 @@ const YouTubeDownloader = () => {
         });
       }, 200);
 
+      let downloadUrl: string;
+      
       if (quality.type === 'audio') {
         downloadUrl = await downloadAudio(videoInfo.videoId, quality.id);
       } else {
-        downloadUrl = await downloadVideo(videoInfo.videoId, quality.id);
+        downloadUrl = await downloadVideo(videoInfo.videoId, quality.id, videoInfo.isShort);
       }
 
       clearInterval(progressInterval);
       setDownloadProgress(100);
 
+      if (!downloadUrl) {
+        throw new Error('No download URL received');
+      }
+
       // Create download link
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `${videoInfo.title}_${quality.quality}.${quality.format.toLowerCase()}`;
+      link.download = `${videoInfo.title.replace(/[^a-z0-9]/gi, '_')}_${quality.quality}_${quality.type}.${quality.format.toLowerCase()}`;
       link.target = '_blank';
+      link.rel = 'noopener noreferrer';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -220,6 +224,14 @@ const YouTubeDownloader = () => {
                     </span>
                     <span>•</span>
                     <span>{videoInfo.views}</span>
+                    {videoInfo.isShort && (
+                      <>
+                        <span>•</span>
+                        <Badge variant="secondary" className="bg-red-500/20 text-red-500 border-red-500/30">
+                          Short
+                        </Badge>
+                      </>
+                    )}
                   </div>
                   <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30">
                     Video ID: {videoInfo.videoId}
@@ -248,11 +260,11 @@ const YouTubeDownloader = () => {
         {videoQualities.length > 0 && (
           <div className="max-w-4xl mx-auto mb-8">
             <h2 className="text-3xl font-bold text-foreground text-center mb-8 animate-fade-in">
-              Video Downloads
+              Video Downloads ({videoQualities.length} options)
             </h2>
             <div className="grid gap-4">
               {videoQualities.map((quality, index) => (
-                <Card key={`video-${index}`} className="glass-card hover:shadow-2xl transition-all duration-300 group animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
+                <Card key={`video-${quality.id}-${index}`} className="glass-card hover:shadow-2xl transition-all duration-300 group animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
                   <div className="p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -274,11 +286,11 @@ const YouTubeDownloader = () => {
                       </div>
                       <Button
                         onClick={() => handleDownload(quality)}
-                        disabled={downloadingQuality === quality.quality}
+                        disabled={downloadingQuality === `${quality.quality}-${quality.type}`}
                         className="gradient-button text-white font-semibold px-6 py-3 shadow-xl disabled:opacity-50"
                       >
                         <Download className="w-5 h-5 mr-2" />
-                        {downloadingQuality === quality.quality ? 'Downloading...' : 'Download Video'}
+                        {downloadingQuality === `${quality.quality}-${quality.type}` ? 'Downloading...' : 'Download Video'}
                       </Button>
                     </div>
                   </div>
@@ -292,11 +304,11 @@ const YouTubeDownloader = () => {
         {audioQualities.length > 0 && (
           <div className="max-w-4xl mx-auto mb-8">
             <h2 className="text-3xl font-bold text-foreground text-center mb-8 animate-fade-in">
-              Audio Downloads
+              Audio Downloads ({audioQualities.length} options)
             </h2>
             <div className="grid gap-4">
               {audioQualities.map((quality, index) => (
-                <Card key={`audio-${index}`} className="glass-card hover:shadow-2xl transition-all duration-300 group animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
+                <Card key={`audio-${quality.id}-${index}`} className="glass-card hover:shadow-2xl transition-all duration-300 group animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
                   <div className="p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -307,7 +319,7 @@ const YouTubeDownloader = () => {
                           <div className="flex items-center gap-3 mb-1">
                             <span className="text-xl font-bold text-foreground">Audio Only</span>
                             <Badge variant="secondary" className="bg-secondary/80 text-secondary-foreground border-border/50">
-                              {quality.mime?.includes('opus') ? 'OPUS' : 'MP4'}
+                              {quality.format}
                             </Badge>
                             <Badge variant="outline" className="border-primary/30 text-primary">
                               {quality.size}
@@ -318,11 +330,11 @@ const YouTubeDownloader = () => {
                       </div>
                       <Button
                         onClick={() => handleDownload(quality)}
-                        disabled={downloadingQuality === quality.quality}
+                        disabled={downloadingQuality === `${quality.quality}-${quality.type}`}
                         className="bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-semibold px-6 py-3 shadow-xl disabled:opacity-50 transition-all duration-300"
                       >
                         <Download className="w-5 h-5 mr-2" />
-                        {downloadingQuality === quality.quality ? 'Downloading...' : 'Download Audio'}
+                        {downloadingQuality === `${quality.quality}-${quality.type}` ? 'Downloading...' : 'Download Audio'}
                       </Button>
                     </div>
                   </div>
