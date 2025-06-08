@@ -5,9 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Download, Play, Video, Youtube, AlertCircle, CheckCircle } from 'lucide-react';
+import { Download, Play, Video, Youtube, AlertCircle, Music } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { fetchVideoQualities, VideoQuality, VideoInfo } from '@/api/youtube';
+import { fetchVideoQualities, VideoQuality, VideoInfo, downloadVideo, downloadAudio } from '@/api/youtube';
 
 const YouTubeDownloader = () => {
   const [url, setUrl] = useState('');
@@ -70,11 +70,11 @@ const YouTubeDownloader = () => {
     }
   };
 
-  const handleDownload = (quality: VideoQuality) => {
-    if (quality.downloadUrl === '#') {
+  const handleDownload = async (quality: VideoQuality) => {
+    if (!videoInfo) {
       toast({
         title: "Error",
-        description: "Download URL not available",
+        description: "Video information not available",
         variant: "destructive"
       });
       return;
@@ -82,32 +82,64 @@ const YouTubeDownloader = () => {
 
     setDownloadingQuality(quality.quality);
     setDownloadProgress(0);
-    
-    // Create a temporary link to trigger download
-    const link = document.createElement('a');
-    link.href = quality.downloadUrl;
-    link.download = `${videoInfo?.title || 'video'}.${quality.format.toLowerCase()}`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Simulate download progress
-    const interval = setInterval(() => {
-      setDownloadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setDownloadingQuality(null);
-          toast({
-            title: "Download Started",
-            description: `${quality.quality} ${quality.format} download initiated`
-          });
-          return 100;
-        }
-        return prev + 10;
+
+    try {
+      let downloadUrl: string;
+      
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setDownloadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      if (quality.type === 'audio') {
+        downloadUrl = await downloadAudio(videoInfo.videoId, quality.id);
+      } else {
+        downloadUrl = await downloadVideo(videoInfo.videoId, quality.id);
+      }
+
+      clearInterval(progressInterval);
+      setDownloadProgress(100);
+
+      // Create download link
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${videoInfo.title}_${quality.quality}.${quality.format.toLowerCase()}`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => {
+        setDownloadingQuality(null);
+        setDownloadProgress(0);
+      }, 2000);
+
+      toast({
+        title: "Download Started",
+        description: `${quality.quality} ${quality.format} download initiated`
       });
-    }, 300);
+
+    } catch (error) {
+      console.error('Download failed:', error);
+      setDownloadingQuality(null);
+      setDownloadProgress(0);
+      toast({
+        title: "Download Failed",
+        description: "Failed to start download. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
+
+  // Separate video and audio qualities
+  const videoQualities = qualities.filter(q => q.type === 'video');
+  const audioQualities = qualities.filter(q => q.type === 'audio');
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -212,24 +244,20 @@ const YouTubeDownloader = () => {
           </Card>
         )}
 
-        {/* Enhanced Quality Options */}
-        {qualities.length > 0 && (
-          <div className="max-w-4xl mx-auto">
+        {/* Video Quality Options */}
+        {videoQualities.length > 0 && (
+          <div className="max-w-4xl mx-auto mb-8">
             <h2 className="text-3xl font-bold text-foreground text-center mb-8 animate-fade-in">
-              Choose Quality & Format
+              Video Downloads
             </h2>
             <div className="grid gap-4">
-              {qualities.map((quality, index) => (
-                <Card key={index} className="glass-card hover:shadow-2xl transition-all duration-300 group animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
+              {videoQualities.map((quality, index) => (
+                <Card key={`video-${index}`} className="glass-card hover:shadow-2xl transition-all duration-300 group animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
                   <div className="p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="p-3 gradient-primary rounded-lg shadow-lg">
-                          {quality.format === 'MP3' ? (
-                            <Play className="w-6 h-6 text-white" />
-                          ) : (
-                            <Video className="w-6 h-6 text-white" />
-                          )}
+                          <Video className="w-6 h-6 text-white" />
                         </div>
                         <div>
                           <div className="flex items-center gap-3 mb-1">
@@ -237,31 +265,64 @@ const YouTubeDownloader = () => {
                             <Badge variant="secondary" className="bg-secondary/80 text-secondary-foreground border-border/50">
                               {quality.format}
                             </Badge>
-                            {quality.size !== 'Unknown' && (
-                              <Badge variant="outline" className="border-primary/30 text-primary">
-                                {quality.size}
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className="border-primary/30 text-primary">
+                              {quality.size}
+                            </Badge>
                           </div>
-                          <p className="text-muted-foreground">Ready for download</p>
+                          <p className="text-muted-foreground">Bitrate: {Math.round(quality.bitrate / 1000)}k</p>
                         </div>
                       </div>
                       <Button
                         onClick={() => handleDownload(quality)}
-                        disabled={quality.downloadUrl === '#'}
-                        className="gradient-button text-white font-semibold px-6 py-3 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={downloadingQuality === quality.quality}
+                        className="gradient-button text-white font-semibold px-6 py-3 shadow-xl disabled:opacity-50"
                       >
-                        {quality.downloadUrl === '#' ? (
-                          <>
-                            <AlertCircle className="w-5 h-5 mr-2" />
-                            Unavailable
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-5 h-5 mr-2" />
-                            Download
-                          </>
-                        )}
+                        <Download className="w-5 h-5 mr-2" />
+                        {downloadingQuality === quality.quality ? 'Downloading...' : 'Download Video'}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Audio Quality Options */}
+        {audioQualities.length > 0 && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <h2 className="text-3xl font-bold text-foreground text-center mb-8 animate-fade-in">
+              Audio Downloads
+            </h2>
+            <div className="grid gap-4">
+              {audioQualities.map((quality, index) => (
+                <Card key={`audio-${index}`} className="glass-card hover:shadow-2xl transition-all duration-300 group animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
+                  <div className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-gradient-to-r from-green-400 to-blue-500 rounded-lg shadow-lg">
+                          <Music className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="text-xl font-bold text-foreground">Audio Only</span>
+                            <Badge variant="secondary" className="bg-secondary/80 text-secondary-foreground border-border/50">
+                              {quality.mime?.includes('opus') ? 'OPUS' : 'MP4'}
+                            </Badge>
+                            <Badge variant="outline" className="border-primary/30 text-primary">
+                              {quality.size}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground">Bitrate: {Math.round(quality.bitrate / 1000)}k</p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => handleDownload(quality)}
+                        disabled={downloadingQuality === quality.quality}
+                        className="bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-semibold px-6 py-3 shadow-xl disabled:opacity-50 transition-all duration-300"
+                      >
+                        <Download className="w-5 h-5 mr-2" />
+                        {downloadingQuality === quality.quality ? 'Downloading...' : 'Download Audio'}
                       </Button>
                     </div>
                   </div>

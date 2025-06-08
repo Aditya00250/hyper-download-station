@@ -4,6 +4,10 @@ export interface VideoQuality {
   format: string;
   size: string;
   downloadUrl: string;
+  id: number;
+  type: 'video' | 'audio';
+  bitrate: number;
+  mime: string;
 }
 
 export interface VideoInfo {
@@ -21,7 +25,6 @@ export interface ApiResponse {
 
 export const fetchVideoQualities = async (videoId: string): Promise<ApiResponse> => {
   try {
-    // Since we can't use Node.js https module in the browser, we'll use fetch
     const response = await fetch(`https://youtube-video-fast-downloader-24-7.p.rapidapi.com/get_available_quality/${videoId}`, {
       method: 'GET',
       headers: {
@@ -38,12 +41,16 @@ export const fetchVideoQualities = async (videoId: string): Promise<ApiResponse>
     console.log('API Response:', data);
 
     // Transform the API response to match our interface
-    const qualities: VideoQuality[] = data.formats?.map((format: any) => ({
+    const qualities: VideoQuality[] = data.map((format: any) => ({
+      id: format.id,
       quality: format.quality || format.format_note || 'Unknown',
-      format: format.ext?.toUpperCase() || 'MP4',
-      size: format.filesize ? `${Math.round(format.filesize / 1024 / 1024)} MB` : 'Unknown',
-      downloadUrl: format.url || '#'
-    })) || [];
+      format: format.mime?.includes('mp4') ? 'MP4' : format.mime?.includes('webm') ? 'WEBM' : format.mime?.includes('audio') ? 'AUDIO' : 'MP4',
+      size: format.size ? `${Math.round(format.size / 1024 / 1024)} MB` : 'Unknown',
+      downloadUrl: '', // Will be fetched when downloading
+      type: format.type,
+      bitrate: format.bitrate || 0,
+      mime: format.mime || ''
+    }));
 
     const videoInfo: VideoInfo = {
       title: data.title || 'Unknown Title',
@@ -56,6 +63,52 @@ export const fetchVideoQualities = async (videoId: string): Promise<ApiResponse>
     return { qualities, videoInfo };
   } catch (error) {
     console.error('API Error:', error);
+    throw error;
+  }
+};
+
+export const downloadVideo = async (videoId: string, qualityId: number): Promise<string> => {
+  try {
+    const response = await fetch(`https://youtube-video-fast-downloader-24-7.p.rapidapi.com/download_video/${videoId}?quality=${qualityId}`, {
+      method: 'GET',
+      headers: {
+        'x-rapidapi-key': '3a7e9844ffmsh5d0520e908fa6e7p1da7d9jsn9d8f1e787e46',
+        'x-rapidapi-host': 'youtube-video-fast-downloader-24-7.p.rapidapi.com'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Download request failed: ${response.status}`);
+    }
+
+    const downloadUrl = await response.text();
+    console.log('Download URL:', downloadUrl);
+    return downloadUrl;
+  } catch (error) {
+    console.error('Download Error:', error);
+    throw error;
+  }
+};
+
+export const downloadAudio = async (videoId: string, qualityId: number): Promise<string> => {
+  try {
+    const response = await fetch(`https://youtube-video-fast-downloader-24-7.p.rapidapi.com/download_audio/${videoId}?quality=${qualityId}`, {
+      method: 'GET',
+      headers: {
+        'x-rapidapi-key': '3a7e9844ffmsh5d0520e908fa6e7p1da7d9jsn9d8f1e787e46',
+        'x-rapidapi-host': 'youtube-video-fast-downloader-24-7.p.rapidapi.com'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Audio download request failed: ${response.status}`);
+    }
+
+    const downloadUrl = await response.text();
+    console.log('Audio Download URL:', downloadUrl);
+    return downloadUrl;
+  } catch (error) {
+    console.error('Audio Download Error:', error);
     throw error;
   }
 };
