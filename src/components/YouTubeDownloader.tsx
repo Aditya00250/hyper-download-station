@@ -79,7 +79,7 @@ const YouTubeDownloader = () => {
       return;
     }
 
-    setDownloadingQuality(`${quality.quality}-${quality.type}`);
+    setDownloadingQuality(`${quality.quality}-${quality.type}-${quality.format}`);
     setDownloadProgress(0);
 
     try {
@@ -213,6 +213,11 @@ const YouTubeDownloader = () => {
                     src={videoInfo.thumbnail}
                     alt="Video thumbnail"
                     className="w-full h-48 object-cover rounded-lg shadow-xl border border-border/50"
+                    onError={(e) => {
+                      // Fallback to default YouTube thumbnail if custom thumbnail fails
+                      const target = e.target as HTMLImageElement;
+                      target.src = `https://img.youtube.com/vi/${videoInfo.videoId}/maxresdefault.jpg`;
+                    }}
                   />
                 </div>
                 <div className="md:w-2/3">
@@ -286,11 +291,11 @@ const YouTubeDownloader = () => {
                       </div>
                       <Button
                         onClick={() => handleDownload(quality)}
-                        disabled={downloadingQuality === `${quality.quality}-${quality.type}`}
+                        disabled={downloadingQuality === `${quality.quality}-${quality.type}-${quality.format}`}
                         className="gradient-button text-white font-semibold px-6 py-3 shadow-xl disabled:opacity-50"
                       >
                         <Download className="w-5 h-5 mr-2" />
-                        {downloadingQuality === `${quality.quality}-${quality.type}` ? 'Downloading...' : 'Download Video'}
+                        {downloadingQuality === `${quality.quality}-${quality.type}-${quality.format}` ? 'Downloading...' : 'Download Video'}
                       </Button>
                     </div>
                   </div>
@@ -330,11 +335,11 @@ const YouTubeDownloader = () => {
                       </div>
                       <Button
                         onClick={() => handleDownload(quality)}
-                        disabled={downloadingQuality === `${quality.quality}-${quality.type}`}
+                        disabled={downloadingQuality === `${quality.quality}-${quality.type}-${quality.format}`}
                         className="bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-semibold px-6 py-3 shadow-xl disabled:opacity-50 transition-all duration-300"
                       >
                         <Download className="w-5 h-5 mr-2" />
-                        {downloadingQuality === `${quality.quality}-${quality.type}` ? 'Downloading...' : 'Download Audio'}
+                        {downloadingQuality === `${quality.quality}-${quality.type}-${quality.format}` ? 'Downloading...' : 'Download Audio'}
                       </Button>
                     </div>
                   </div>
